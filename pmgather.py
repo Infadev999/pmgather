@@ -129,6 +129,10 @@ def mainRun(path,proc,delay,itr,rec,user,strace):
         logging.error("Unsupported Operating System : Windows")
         print('OS Name is Windows')
 
+    #Adding server timezone to print in pmgather.log file
+    server_timezone = datetime.datetime.now(datetime.timezone.utc).astimezone().tzinfo
+    logging.info('Server Timezone : {}'.format(server_timezone))
+
     # Determine if the value passed in proc variable is a PID or a ServiceName
     if proc.isnumeric():
         detail=getPID(proc,user)
