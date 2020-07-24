@@ -285,8 +285,8 @@ def getProcess(proc,user):
             pass
     # Validates if the process is defunct
     if status == 'zombie':
-        print('Zombie Process detected : Parent process is dead. Kill and restart required, exiting application ...')
-        logging.error("PID : {pid} detected as a zombie processes, exiting the application".format(pid))
+        print("Process still exists, but it's a ZOMBIE. Quitting the Application!!!")
+        logging.error("PID : {pid} detected as a zombie processes, quitting the application".format(pid))
         sys.exit()
     else:
         if proc_name==runProc:
@@ -337,8 +337,8 @@ def getPID(proc,user):
         sys.exit()
     # Validates if the process is defunct
     if status == 'zombie':
-        print('Zombie Process detected {}: Parent process is dead. Kill and restart required, exiting application ...'.format(procID))
-        logging.error("PID : {} detected as a zombie processes, exiting the application".format(procID))
+        print("Process {} still exists, but it's a ZOMBIE. Quitting the Application!!!".format(procID))
+        logging.error("PID : {} detected as a zombie processes, quitting the application".format(procID))
         sys.exit()
     else:
         if int(procID)==pid:
