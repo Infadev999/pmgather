@@ -227,6 +227,20 @@ def convBase64(proc_name,enc):
     output , error =process.communicate()
     return output.decode('utf-8').split("\n")[0]
 
+def getProcExecutable(pid):
+    '''
+    This function is to find the executable name of the given process.
+    It will be used to parse to the pmstack command along with -e option
+    :param pid:
+    :return exeName:
+    '''
+    exeName=None
+    for proc in psutil.process_iter(['pid', 'exe']):
+        if proc.info['pid'] == pid:
+            exeName=proc.info['exe']
+    print(exeName)
+    return exeName
+
 def getProcess(proc,user):
     '''Returns process related information after
         validating the service name passed by user'''
@@ -238,7 +252,8 @@ def getProcess(proc,user):
     pid=None
     pName=None
     status=None
-    for p in psutil.process_iter(attrs=['pid','cmdline','name','username','status']):
+    procExec=None
+    for p in psutil.process_iter(attrs=['pid','cmdline','name','username','status','exe']):
         try:
             if len(p.info['cmdline'])>0 and (proc_name in str(p.info['cmdline']) or nJava in str(p.info['cmdline'])) and (not 'python' in p.info['cmdline']):
                 cmdLine=p.info['cmdline']
@@ -246,6 +261,7 @@ def getProcess(proc,user):
                 pid=p.info['pid']
                 usr=p.info['username']
                 status=p.info['status']
+                procExec=p.info['exe']
                 if pName == 'java':
                     for list_ in cmdLine:
                         if "-Dcatalina.base" in list_:
@@ -275,7 +291,7 @@ def getProcess(proc,user):
     else:
         if proc_name==runProc:
             if usr==getpass.getuser() or user: #(Included the bypass flag for user check)
-                return [pid,pName,usr,cmdLine,status]
+                return [pid,pName,usr,cmdLine,status,procExec]
             else:
                 print('Login user {loginUser} is different than the owner of the process i.e {ownUser}, set -U to True for bypassing user check'.format(loginUser=getpass.getuser(), ownUser=usr))
                 logging.error("Login user : {loginUser} is not the owner {ownUser}".format(loginUser=getpass.getuser(), ownUser=usr))
@@ -295,9 +311,10 @@ def getPID(proc,user):
     usr=None
     status=None
     ppid=None
+    procExec=None
     try:
         if psutil.pid_exists(int(procID)) and int(procID)!=1:
-            for p in psutil.process_iter(attrs=['pid','cmdline','name','username','status','ppid']):
+            for p in psutil.process_iter(attrs=['pid','cmdline','name','username','status','ppid','exe']):
                 try:
                     if (p.info['pid']==int(procID)):
                         cmdLine=p.info['cmdline']
@@ -306,6 +323,7 @@ def getPID(proc,user):
                         usr=p.info['username']
                         status=p.info['status']
                         ppid=p.info['ppid']
+                        procExec=p.info['exe']
                     else:
                         pass
                 except (TypeError, IndexError) as e:
@@ -325,7 +343,7 @@ def getPID(proc,user):
     else:
         if int(procID)==pid:
             if usr==getpass.getuser() or user: #(Included the bypass flag for user check)
-                return [pid,pName,usr,cmdLine,status,ppid]
+                return [pid,pName,usr,cmdLine,status,ppid,procExec]
             else:
                 print('Login user {loginUser} is different than the owner of the process i.e {ownUser}, set -U to True for bypassing user check'.format(loginUser=getpass.getuser(), ownUser=usr))
                 logging.error("Login user : {loginUser} is not the owner {ownUser}".format(loginUser=getpass.getuser(), ownUser=usr))
@@ -471,6 +489,7 @@ def gather(infa_home,pid,pName,user,itr,dl,jdkHome,colPath,rec,runSys,strace):
     #generic
     sPid=str(pid)
     path=colPath
+    procExec=getProcExecutable(pid)
     # Command related
     app_dir_sys=path+'/sys'
     app_dir_proc=path+'/proc/'+pName+'_'+sPid
@@ -514,7 +533,7 @@ def gather(infa_home,pid,pName,user,itr,dl,jdkHome,colPath,rec,runSys,strace):
         'pmap':['P', True, 'pmap -x {pid} > pmap_{pid}_{itr}.out',0,False],
         'netstat_p':['P', True, 'netstat -peano | grep {pid} > netstat_{pid}_{itr}.out',0,True],
         'lsof_p':['P', True, 'lsof -p {pid} > lsof_{pid}_{itr}.out',0,False],
-        'pmstack':['P', True, '{infaHome}/tools/debugtools/pmstack/pmstack -p {pid}',2,False],
+        'pmstack':['P', True, '{infaHome}/tools/debugtools/pmstack/pmstack -e {procExec} -p {pid}',2,False],
         'pstack':['P', True, 'pstack {pid} > pstack_{pid}_{itr}.out',2,False],
         'jstack':['P', True, '{jdkHome}/jstack -l {pid} > jstack_{pid}_{itr}.out', 1,False],
     #Putting strace in the end as it bring 10s delay
@@ -567,7 +586,7 @@ def gather(infa_home,pid,pName,user,itr,dl,jdkHome,colPath,rec,runSys,strace):
 
     def exec_proc(dict,itr):
         for i in dict:
-            cmd=dict[i][2].format(pid=sPid,itr=itr+1,usr=user,infaHome=infa_home,jdkHome=jdkHome,strace=strace)
+            cmd=dict[i][2].format(pid=sPid,itr=itr+1,usr=user,infaHome=infa_home,procExec=procExec,jdkHome=jdkHome,strace=strace)
             path='{}/{}'.format(app_dir_proc,i) if dict[i][0]=='P' else '{}/{}'.format(app_dir_sys,i)
             # if process is non java(adminconsole, nodeJava added for preserving the name) other than pmdtm then dont collect jstack
             # if process is java(adminconsole, nodeJava added for preserving the name) then dont collect pstack and pmstack
