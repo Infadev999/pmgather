@@ -550,6 +550,7 @@ def gather(infa_home,pid,pName,user,itr,dl,jdkHome,colPath,rec,runSys,strace):
         'iostat':['S', True, 'iostat > iostat_{itr}.out',0,True],
         'lsof_s':[ 'S', False, 'lsof -u {usr} > lsof_{usr}.out',0,False],
         'ps-ef':[ 'S', True, 'ps -ef > ps_{itr}.out',0,True],
+        'dmesg':['S',False,'dmesg -T > dmesg.out',0,False]
     }
 
 
