@@ -4,7 +4,7 @@ import psutil
 import subprocess
 import getpass
 import datetime
-from shutil import make_archive
+from shutil import make_archive,rmtree
 from urllib.parse import unquote
 from distutils.file_util import copy_file
 from distutils.dir_util import copy_tree,mkpath
@@ -193,9 +193,17 @@ def mainRun(path,proc,delay,itr,rec,user,strace):
             pass
 
 def archive(path):
+    '''
+    To archive the folder to a zip file and then remove the actual folder.
+    :param path:
+    :return:
+    '''
     try:
-        print("Zipping the directory {}".format(path))
+        print("\nZipping the directory - {}".format(path))
         make_archive(path,'zip',path)
+        rmtree(path,ignore_errors=True)
+        print("Deleted the directory - {}".format(path))
+        print("\nZipped the directory successfully. Please send {}.zip file to Informatica GCS team.".format(path.split('/')[1]))
         logging.info("Zipped the directory {}".format(path))
     except FileNotFoundError as e:
         logging.error("File \'{}\' not available for archive".format(path))
