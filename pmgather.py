@@ -541,7 +541,7 @@ def gather(infa_home,pid,pName,user,itr,dl,jdkHome,colPath,rec,runSys,strace):
         'pmap':['P', True, 'pmap -x {pid} > pmap_{pid}_{itr}.out',0,False],
         'netstat_p':['P', True, 'netstat -peano | grep {pid} > netstat_{pid}_{itr}.out',0,True],
         'lsof_p':['P', True, 'lsof -p {pid} > lsof_{pid}_{itr}.out',0,False],
-        'pmstack':['P', True, '{infaHome}/tools/debugtools/pmstack/pmstack -e {procExec} -p {pid}',2,False],
+        'pmstack':['P', True, '{infaHome}/tools/debugtools/infaDump/pmstack -e {procExec} -p {pid}',2,False],
         'pstack':['P', True, 'pstack {pid} > pstack_{pid}_{itr}.out',2,False],
         'jstack':['P', True, '{jdkHome}/jstack -l {pid} > jstack_{pid}_{itr}.out', 1,False],
     #Putting strace in the end as it bring 10s delay
