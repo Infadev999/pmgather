@@ -117,7 +117,7 @@ def mainRun(path,proc,delay,itr,rec,user,strace):
     while (checkInfaHome(infa_home)!=1):
         infa_home=input('Enter Correct path for INFA_HOME:\n')
         checkInfaHome(infa_home)
-        print(infa_home)
+        #print(infa_home)
     print('INFA_HOME correctly set :',infa_home)
     logging.info("INFA_HOME - {} validated successfully".format(path))
 
@@ -138,7 +138,7 @@ def mainRun(path,proc,delay,itr,rec,user,strace):
         detail=getPID(proc,user)
         #returns [pid,pName,usr,cmdLine,status]
     else:
-        detail=getProcess(proc,user)
+        detail=getProcess(proc,user,infa_home)
         #returns [pid,pName,usr,cmdLine,status]
 
     # Get jdk_home path
@@ -153,7 +153,10 @@ def mainRun(path,proc,delay,itr,rec,user,strace):
 
     # Invoke gather
     if rec:
+        #print(detail[0])
+        #print(infa_home)
         pidDict=getRecursive(detail[0],infa_home)
+        #print(pidDict)
         maxRun=0
         pidPool=[]
         pNamePool=[]
@@ -182,12 +185,14 @@ def mainRun(path,proc,delay,itr,rec,user,strace):
                 pass
         #Zip the artifacts after gather runs
         archive(colPath)
+
     else:
         try:
             gather(infa_home, detail[0], detail[1],detail[2],itr,delay,jdkHome,colPath,rec,runSys,strace)
             #gather(infa_home,pid,pName,user,itr,dl,jdkHome,colPath,rec,runSys)
             #Zip the artifacts after gather runs
             archive(colPath)
+
         except TypeError as e:
             logging.error("Unexpected Error while invoking gather contact Informatica Global Support")
             pass
@@ -201,13 +206,25 @@ def archive(path):
     try:
         print("\nZipping the directory - {}".format(path))
         make_archive(path,'zip',path)
-        rmtree(path,ignore_errors=True)
-        print("Deleted the directory - {}".format(path))
+        #rmtree(path,ignore_errors=True)
+        try:
+            for root, dirs, files in os.walk(path, topdown=False):
+                for name in files:
+                    os.remove(os.path.join(root, name))
+                for name in dirs:
+                    os.rmdir(os.path.join(root, name))
+            os.rmdir(os.path.join(path))
+            print("Deleted the directory - {}".format(path))
+        except OSError:
+            print("Error occurred while deleting directory - {}. Please delete it manually.".format(path))
+            logging.warning("Error in deleting folder {}.")
+
         print("\nZipped the directory successfully. Please send {}.zip file to Informatica GCS team.".format(path.split('/')[1]))
         logging.info("Zipped the directory {}".format(path))
     except FileNotFoundError as e:
         logging.error("File \'{}\' not available for archive".format(path))
         pass
+
 
 def checkInfaHome(path):
     '''Check if the INFA_HOME path is correct by validating with the directory structure'''
@@ -237,7 +254,7 @@ def convBase64(proc_name,enc):
 
 def getProcExecutable(pid):
     '''
-    This function is to find the executable name of the given process.
+    This function is to find the executable name of the given process(non-java process)
     It will be used to parse to the pmstack command along with -e option
     :param pid:
     :return exeName:
@@ -246,10 +263,9 @@ def getProcExecutable(pid):
     for proc in psutil.process_iter(['pid', 'exe']):
         if proc.info['pid'] == pid:
             exeName=proc.info['exe']
-    print(exeName)
     return exeName
 
-def getProcess(proc,user):
+def getProcess(proc,user,infa_home):
     '''Returns process related information after
         validating the service name passed by user'''
     proc_name=proc.strip()
@@ -263,13 +279,14 @@ def getProcess(proc,user):
     procExec=None
     for p in psutil.process_iter(attrs=['pid','cmdline','name','username','status','exe']):
         try:
-            if len(p.info['cmdline'])>0 and (proc_name in str(p.info['cmdline']) or nJava in str(p.info['cmdline'])) and (not 'python' in p.info['cmdline']):
+            if infa_home in p.info['exe'] and len(p.info['cmdline'])>0 and (proc_name in str(p.info['cmdline']) or nJava in str(p.info['cmdline'])) and (not 'python' in p.info['cmdline']):
                 cmdLine=p.info['cmdline']
                 pName=p.info['name']
                 pid=p.info['pid']
                 usr=p.info['username']
                 status=p.info['status']
                 procExec=p.info['exe']
+                #print(p.info['cmdline'])
                 if pName == 'java':
                     for list_ in cmdLine:
                         if "-Dcatalina.base" in list_:
@@ -288,8 +305,10 @@ def getProcess(proc,user):
                     pass
             else:
                 pass
+                #print("\nINFA_HOME of the PID is not matching with current INFA_HOME. Exiting the Application!")
+                #logging.error("INFA_HOME of the PID is not matching with current INFA_HOME. Exiting the Application!")
         except (TypeError, IndexError) as e:
-            logging.error("Unexpected error occured while fetching the process information contact Informatica Global Support")
+            #logging.error("Unexpected error occured while fetching the process information contact Informatica Global Support")
             pass
     # Validates if the process is defunct
     if status == 'zombie':
@@ -419,6 +438,7 @@ def getNodeLogDir(path):
     else:
         return path+'/tomcat/logs'
 
+
 #Fetch RS name using pmserver pid
 def getRS(pid,infa_home):
     server_home=infa_home+'/server/bin/'
@@ -452,15 +472,20 @@ def getRecursive(pid,infa_home):
     'pmdtm':[None,False]
     }
     inProc=getPID(str(pid),True)
-    adminPid=getProcess('AdminConsole', True)[0]
+    #print('inProc is {}'.format(inProc))
+    #print('Last entry {}'.format(inProc[-1]))
+    #print('INFA HOME {}'.format(infa_home))
+    adminPid=getProcess('AdminConsole', True,infa_home)[0]
+    #print('Admin Console PID {}'.format(adminPid))
     nodePid=getPID(str(adminPid), True)[5]
+    #print("Node PID {}".format(nodePid))
     pmrepagentPid=None
     pmserverPid=None
     pmdtmPid=None
     if inProc[1]=='pmdtm':
         pmdtmPid=inProc[0]
         pmserverPid=inProc[5]
-        pmrepagentPid=getProcess(getRS(pmserverPid, infa_home),True)[0]
+        pmrepagentPid=getProcess(getRS(pmserverPid, infa_home),True,infa_home)[0]
         pidDict['nodeJava']=[nodePid,True]
         pidDict['AdminConsole']=[adminPid,True]
         pidDict['pmrepagent']=[pmrepagentPid,True]
@@ -468,7 +493,7 @@ def getRecursive(pid,infa_home):
         pidDict['pmdtm']=[pmdtmPid,True]
     elif inProc[1]=='pmserver':
         pmserverPid=inProc[0]
-        pmrepagentPid=getProcess(getRS(pmserverPid, infa_home),True)[0]
+        pmrepagentPid=getProcess(getRS(pmserverPid, infa_home),True,infa_home)[0]
         pidDict['nodeJava']=[nodePid,True]
         pidDict['AdminConsole']=[adminPid,True]
         pidDict['pmrepagent']=[pmrepagentPid,True]
